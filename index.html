@@ -61,6 +61,15 @@
     font:inherit; padding:12px 14px; border:1px solid var(--line); border-radius:10px;
     background:var(--panel); color:var(--ink); font-variant-numeric:tabular-nums;
   }
+  .printer-list{display:grid; gap:10px; margin-top:10px;}
+  .printer-row{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    border:1px solid var(--line); border-radius:10px; background:var(--panel); padding:12px 14px;
+  }
+  .printer-row.selected{border-color:var(--accent); background:var(--accent-soft);}
+  .printer-host{font-variant-numeric:tabular-nums; font-weight:700;}
+  .printer-model{color:var(--muted); font-size:13px; margin-top:2px;}
+  .printer-row button{min-height:40px;}
   [hidden]{display:none !important;}
 </style>
 </head>
@@ -102,6 +111,13 @@
     <p class="hint">Gedruckt wird per ePOS-Print über HTTP. „Secure Printing“ am Drucker muss <b>aus</b> sein.</p>
     <button id="testBtn" type="button">Testdruck senden</button>
     <p class="status" id="testStatus"></p>
+
+    <div id="scanBlock" hidden>
+      <div class="section-title" style="padding-top:20px"><h2>Im Netzwerk suchen</h2></div>
+      <button id="scanBtn" type="button">Drucker im Netzwerk suchen</button>
+      <p class="status" id="scanStatus"></p>
+      <div class="printer-list" id="printerList"></div>
+    </div>
   </section>
 
 </div>
@@ -322,6 +338,91 @@ async function testPrint(){
   }
 }
 
+// ---- Drucker-Suche (nur in der nativen App) ------------------------------
+// Das Scannen des Netzwerks (TCP :9100) macht der native Swift-Code und liefert
+// das Ergebnis über window.__kscanResult zurück.
+let _scanSeq = 0;
+const _scanWaiters = {};
+window.__kscanResult = function(id, json){
+  const w = _scanWaiters[id];
+  if (!w) return;
+  delete _scanWaiters[id];
+  try { w.resolve(JSON.parse(json) || []); }
+  catch (e){ w.reject(new Error('Scan-Antwort fehlerhaft')); }
+};
+function scanBridge(){
+  return window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.kscan;
+}
+
+function requestScan(){
+  const bridge = scanBridge();
+  if (!bridge) return Promise.reject(new Error('Suche nur in der App verfügbar'));
+  const id = ++_scanSeq;
+  return new Promise((resolve, reject) => {
+    _scanWaiters[id] = { resolve, reject };
+    setTimeout(() => {
+      if (_scanWaiters[id]){ delete _scanWaiters[id]; reject(new Error('Zeitüberschreitung')); }
+    }, 30000);
+    bridge.postMessage({ id });
+  });
+}
+
+async function scanPrinters(){
+  const btn = $('scanBtn');
+  btn.disabled = true;
+  setStatus('scanStatus', 'Suche läuft … (ein paar Sekunden)');
+  try {
+    const printers = await requestScan();
+    renderPrinterList(printers);
+    setStatus('scanStatus', `${printers.length} Drucker gefunden.`);
+  } catch (e){
+    setStatus('scanStatus', 'Fehler: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderPrinterList(printers){
+  const root = $('printerList');
+  root.innerHTML = '';
+  if (!printers.length){
+    root.innerHTML = '<p class="hint">Keine Drucker gefunden.</p>';
+    return;
+  }
+  const current = printerIP();
+  for (const p of printers){
+    const row = document.createElement('div');
+    const selected = p.host === current;
+    row.className = 'printer-row' + (selected ? ' selected' : '');
+
+    const info = document.createElement('div');
+    const host = document.createElement('div');
+    host.className = 'printer-host';
+    host.textContent = p.host;
+    info.append(host);
+    if (p.model){
+      const model = document.createElement('div');
+      model.className = 'printer-model';
+      model.textContent = p.model;
+      info.append(model);
+    }
+
+    const choose = document.createElement('button');
+    choose.type = 'button';
+    choose.textContent = selected ? 'Ausgewählt' : 'Wählen';
+    choose.disabled = selected;
+    choose.addEventListener('click', () => {
+      setPrinterIP(p.host);
+      $('ipInput').value = p.host;
+      renderPrinterList(printers);
+      setStatus('scanStatus', `Gewählt: ${p.host}`, 'ok');
+    });
+
+    row.append(info, choose);
+    root.append(row);
+  }
+}
+
 // ---- Ansichten / Hilfen --------------------------------------------------
 function setStatus(id, text, kind){
   const el = $(id);
@@ -339,7 +440,11 @@ function init(){
   $('printBtn').addEventListener('click', printOrder);
   $('resetBtn').addEventListener('click', resetOrder);
   $('testBtn').addEventListener('click', testPrint);
+  $('scanBtn').addEventListener('click', scanPrinters);
   $('ipInput').addEventListener('change', (e) => { if (e.target.value.trim()) setPrinterIP(e.target.value); });
+
+  // Suche nur anzeigen, wenn der native Scan verfügbar ist (in der App).
+  if (scanBridge()) $('scanBlock').hidden = false;
 
   $('ipInput').value = printerIP();
   renderItems();

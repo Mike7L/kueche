@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Küche">
+<title>Küche</title>
+<style>
+  :root{
+    color-scheme: light;
+    --bg:#f7f3ea; --ink:#202124; --muted:#6b6258; --line:#d9d2c6;
+    --panel:#fffdf8; --accent:#0f766e; --accent-soft:#d7f0ea; --danger:#9f2d20;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    touch-action:manipulation; -webkit-text-size-adjust:100%;
+  }
+  .app-shell{
+    width:min(560px,100%); min-height:100vh; margin:0 auto;
+    padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom));
+  }
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:12px; padding:8px 0 18px;
+  }
+  h1,h2,p{margin:0;}
+  h1{font-size:30px; line-height:1.1;}
+  h2{font-size:20px;}
+  .topbar p,.status,.hint{color:var(--muted); font-size:14px;}
+  button{
+    min-height:44px; border:0; border-radius:8px; background:var(--accent);
+    color:#fff; font:inherit; font-weight:700; padding:10px 14px; touch-action:manipulation;
+  }
+  button:disabled{background:#b7b0a6;}
+  .icon-button{width:44px; padding:0; font-size:22px;}
+  .text-button{background:transparent; color:var(--danger); padding-inline:0;}
+  .items{display:grid; gap:12px;}
+  .item-card{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:14px 16px;
+  }
+  .item-card.active{border-color:var(--accent); background:var(--accent-soft);}
+  .item-name{font-size:20px; font-weight:800;}
+  .counter{display:inline-grid; grid-template-columns:52px 56px 52px; align-items:center; gap:8px;}
+  .counter button{width:52px; min-height:48px; font-size:26px; line-height:1; padding:0;}
+  .counter .value{text-align:center; font-size:24px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .actions{display:flex; align-items:center; gap:12px; padding:22px 0 6px;}
+  #printBtn{margin-left:auto; flex:1 1 auto; min-height:56px; font-size:18px;}
+  .status{min-height:22px; padding-top:10px;}
+  .status.ok{color:var(--accent); font-weight:700;}
+  .status.err{color:var(--danger); font-weight:700;}
+  .section-title{display:flex; align-items:center; justify-content:space-between; padding:4px 0 14px;}
+  .hint{padding:4px 0 10px;}
+  .field{display:grid; gap:6px; margin:10px 0 16px;}
+  .field label{font-size:14px; color:var(--muted); font-weight:700;}
+  .field input{
+    font:inherit; padding:12px 14px; border:1px solid var(--line); border-radius:10px;
+    background:var(--panel); color:var(--ink); font-variant-numeric:tabular-nums;
+  }
+  [hidden]{display:none !important;}
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ===== Bestellen ===== -->
+  <section id="orderView">
+    <div class="topbar">
+      <div>
+        <h1>Küche</h1>
+        <p>Bestellung aufnehmen</p>
+      </div>
+      <button class="icon-button" id="settingsBtn" type="button" aria-label="Einstellungen">⚙︎</button>
+    </div>
+
+    <div class="items" id="items"></div>
+
+    <div class="actions">
+      <button class="text-button" id="resetBtn" type="button">Zurücksetzen</button>
+      <button id="printBtn" type="button">An Küche drucken</button>
+    </div>
+    <p class="status" id="orderStatus"></p>
+  </section>
+
+  <!-- ===== Einstellungen ===== -->
+  <section id="settingsView" hidden>
+    <div class="topbar">
+      <div><h1>Einstellungen</h1></div>
+      <button class="icon-button" id="backBtn" type="button" aria-label="Zurück">✕</button>
+    </div>
+
+    <div class="section-title"><h2>Drucker</h2></div>
+    <div class="field">
+      <label for="ipInput">IP-Adresse des Druckers</label>
+      <input id="ipInput" type="text" inputmode="decimal" autocapitalize="off"
+             autocomplete="off" spellcheck="false" placeholder="192.168.1.85">
+    </div>
+    <p class="hint">Gedruckt wird per ePOS-Print über HTTP. „Secure Printing“ am Drucker muss <b>aus</b> sein.</p>
+    <button id="testBtn" type="button">Testdruck senden</button>
+    <p class="status" id="testStatus"></p>
+  </section>
+
+</div>
+
+<script>
+'use strict';
+
+// Festes Menü
+const MENU = [
+  { key:'broetchen', name:'Brötchen' },
+  { key:'pommes',    name:'Pommes' },
+  { key:'backfisch', name:'Backfisch' },
+];
+
+const state = { qty:{} };
+const $ = (id) => document.getElementById(id);
+
+// ---- Speicher ------------------------------------------------------------
+function printerIP(){ return localStorage.getItem('kueche_ip') || '192.168.1.85'; }
+function setPrinterIP(ip){ localStorage.setItem('kueche_ip', ip.trim()); }
+
+function nextOrderNo(){
+  const today = new Date().toISOString().slice(0,10);
+  let c;
+  try { c = JSON.parse(localStorage.getItem('kueche_counter') || '{}'); } catch { c = {}; }
+  if (c.date !== today) c = { date: today, seq: 0 };
+  c.seq = (c.seq || 0) + 1;
+  localStorage.setItem('kueche_counter', JSON.stringify(c));
+  return c.seq;
+}
+
+// ---- ePOS-Print XML ------------------------------------------------------
+function escXml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function soapWrap(inner){
+  return '<?xml version="1.0" encoding="utf-8"?>' +
+    '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body>' +
+    '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">' +
+    inner + '</epos-print></s:Body></s:Envelope>';
+}
+
+function nowStr(){
+  const d = new Date(), p = (n)=>String(n).padStart(2,'0');
+  return `${p(d.getDate())}.${p(d.getMonth()+1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function buildOrderXml(items, orderNo){
+  let b = '';
+  b += '<text lang="de" smooth="true"/>';
+  b += '<text align="center"/>';
+  b += '<text dw="true" dh="true"/>';
+  b += '<text>KÜCHE&#10;</text>';
+  b += '<text dw="false" dh="false"/>';
+  b += '<text em="true"/>';
+  b += '<text>Bestellung #' + String(orderNo).padStart(4,'0') + '&#10;</text>';
+  b += '<text em="false"/>';
+  b += '<text>' + escXml(nowStr()) + '&#10;</text>';
+  b += '<text align="left"/>';
+  b += '<text>' + '-'.repeat(32) + '&#10;</text>';
+  b += '<text dh="true"/>';
+  for (const it of items){
+    b += '<text> ' + it.qty + 'x ' + escXml(it.name) + '&#10;</text>';
+  }
+  b += '<text dh="false"/>';
+  b += '<feed line="3"/>';
+  b += '<cut type="feed"/>';
+  return soapWrap(b);
+}
+
+function buildTestXml(){
+  let b = '';
+  b += '<text lang="de" smooth="true"/>';
+  b += '<text align="center"/>';
+  b += '<text dw="true" dh="true"/>';
+  b += '<text>KÜCHE&#10;</text>';
+  b += '<text dw="false" dh="false"/>';
+  b += '<text>Testdruck&#10;</text>';
+  b += '<text>Umlaute: ä ö ü Ä Ö Ü ß&#10;</text>';
+  b += '<text>' + escXml(nowStr()) + '&#10;</text>';
+  b += '<feed line="3"/>';
+  b += '<cut type="feed"/>';
+  return soapWrap(b);
+}
+
+function printerUrl(){
+  return `http://${printerIP()}/cgi-bin/epos/service.cgi?devid=local_printer&timeout=10000`;
+}
+
+// Brücke zur nativen App (WKWebView). Ist sie da, druckt der native Code
+// per URLSession (kein Mixed-Content, kein Zertifikatsproblem). Sonst:
+// direkter fetch (lokales HTTP / Test im Browser).
+let _printSeq = 0;
+const _printWaiters = {};
+window.__kprintResult = function(id, ok, message){
+  const w = _printWaiters[id];
+  if (!w) return;
+  delete _printWaiters[id];
+  ok ? w.resolve() : w.reject(new Error(message || 'Druckfehler'));
+};
+function nativeBridge(){
+  return window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.kprint;
+}
+
+async function sendXml(xml){
+  const bridge = nativeBridge();
+  if (bridge){
+    const id = ++_printSeq;
+    const p = new Promise((resolve, reject) => {
+      _printWaiters[id] = { resolve, reject };
+      setTimeout(() => {
+        if (_printWaiters[id]){ delete _printWaiters[id]; reject(new Error('Zeitüberschreitung')); }
+      }, 15000);
+    });
+    bridge.postMessage({ id, url: printerUrl(), xml });
+    return p;
+  }
+  // Fallback: direkter fetch (funktioniert nur über HTTP-Origin/lokal)
+  const res = await fetch(printerUrl(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/xml; charset=utf-8' },
+    body: xml,
+  });
+  const txt = await res.text();
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const ok = /success="true"/.test(txt);
+  if (!ok){
+    const m = txt.match(/code="([^"]*)"/);
+    throw new Error('Drucker meldete Fehler' + (m && m[1] ? ` (${m[1]})` : '') + '.');
+  }
+}
+
+// ---- Bestell-Ansicht -----------------------------------------------------
+function renderItems(){
+  const root = $('items');
+  root.innerHTML = '';
+  for (const item of MENU){
+    const qty = state.qty[item.key] || 0;
+    const card = document.createElement('div');
+    card.className = 'item-card' + (qty > 0 ? ' active' : '');
+
+    const name = document.createElement('div');
+    name.className = 'item-name';
+    name.textContent = item.name;
+
+    const counter = document.createElement('div');
+    counter.className = 'counter';
+
+    const minus = document.createElement('button');
+    minus.type = 'button'; minus.textContent = '−'; minus.disabled = qty <= 0;
+    minus.addEventListener('click', () => changeQty(item.key, -1));
+
+    const value = document.createElement('div');
+    value.className = 'value'; value.textContent = String(qty);
+
+    const plus = document.createElement('button');
+    plus.type = 'button'; plus.textContent = '+';
+    plus.addEventListener('click', () => changeQty(item.key, +1));
+
+    counter.append(minus, value, plus);
+    card.append(name, counter);
+    root.append(card);
+  }
+}
+
+function changeQty(key, delta){
+  state.qty[key] = Math.max(0, (state.qty[key] || 0) + delta);
+  renderItems();
+  setStatus('orderStatus', '');
+}
+
+function currentItems(){
+  return MENU
+    .map((m) => ({ name: m.name, qty: state.qty[m.key] || 0 }))
+    .filter((it) => it.qty > 0);
+}
+
+function resetOrder(){
+  state.qty = {};
+  renderItems();
+  setStatus('orderStatus', '');
+}
+
+async function printOrder(){
+  const items = currentItems();
+  if (!items.length){
+    setStatus('orderStatus', 'Bitte zuerst Positionen wählen.', 'err');
+    return;
+  }
+  const btn = $('printBtn');
+  btn.disabled = true;
+  setStatus('orderStatus', 'Drucke …');
+  const orderNo = nextOrderNo();
+  try {
+    await sendXml(buildOrderXml(items, orderNo));
+    setStatus('orderStatus', `Gedruckt — Bestellung #${String(orderNo).padStart(4,'0')}`, 'ok');
+    state.qty = {};
+    renderItems();
+  } catch (e){
+    setStatus('orderStatus', 'Fehler: ' + e.message + ' — Drucker/WLAN prüfen.', 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ---- Einstellungen -------------------------------------------------------
+async function testPrint(){
+  const btn = $('testBtn');
+  btn.disabled = true;
+  setStatus('testStatus', 'Testdruck wird gesendet …');
+  try {
+    await sendXml(buildTestXml());
+    setStatus('testStatus', 'Testdruck gesendet — kommt er aus dem Drucker?', 'ok');
+  } catch (e){
+    setStatus('testStatus', 'Fehler: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ---- Ansichten / Hilfen --------------------------------------------------
+function setStatus(id, text, kind){
+  const el = $(id);
+  el.textContent = text || '';
+  el.className = 'status' + (kind ? ' ' + kind : '');
+}
+function showSettings(show){
+  $('orderView').hidden = show;
+  $('settingsView').hidden = !show;
+}
+
+function init(){
+  $('settingsBtn').addEventListener('click', () => { $('ipInput').value = printerIP(); showSettings(true); });
+  $('backBtn').addEventListener('click', () => showSettings(false));
+  $('printBtn').addEventListener('click', printOrder);
+  $('resetBtn').addEventListener('click', resetOrder);
+  $('testBtn').addEventListener('click', testPrint);
+  $('ipInput').addEventListener('change', (e) => { if (e.target.value.trim()) setPrinterIP(e.target.value); });
+
+  $('ipInput').value = printerIP();
+  renderItems();
+}
+
+init();
+</script>
+</body>
+</html>

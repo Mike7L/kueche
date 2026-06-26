@@ -21,7 +21,7 @@
   }
   .app-shell{
     width:min(560px,100%); min-height:100vh; margin:0 auto;
-    padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom));
+    padding:max(8px,env(safe-area-inset-top)) 14px max(8px,env(safe-area-inset-bottom));
   }
   .topbar{
     display:flex; align-items:center; justify-content:space-between;
@@ -42,28 +42,33 @@
   .btn-soft.on{background:var(--accent); color:#fff;}
 
   /* Gruppen */
-  .group{margin:6px 0 4px;}
+  .group{margin:0;}
   .group-title{
     display:flex; align-items:center; gap:8px;
-    font-size:15px; font-weight:800; letter-spacing:.04em; text-transform:uppercase;
-    color:var(--muted); padding:14px 2px 8px;
+    font-size:12px; font-weight:800; letter-spacing:.04em; text-transform:uppercase;
+    color:var(--muted); padding:5px 2px 4px;
   }
   .group-title::after{content:""; flex:1; height:1px; background:var(--line);}
 
-  .items{display:grid; gap:10px;}
+  .items{display:grid; gap:7px;}
   .item-card{
     display:flex; align-items:center; justify-content:space-between; gap:12px;
-    border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:12px 14px;
+    border:1px solid var(--line); border-radius:10px; background:var(--panel); padding:4px 14px;
   }
   .item-card.active{border-color:var(--accent); background:var(--accent-soft);}
-  .item-name{font-size:19px; font-weight:800;}
-  .counter{display:inline-grid; grid-template-columns:50px 52px 50px; align-items:center; gap:8px;}
-  .counter button{width:50px; min-height:46px; font-size:26px; line-height:1; padding:0;}
-  .counter .value{text-align:center; font-size:23px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .item-name{font-size:18px; font-weight:800;}
+  .counter{display:inline-grid; grid-template-columns:44px 44px 44px; align-items:center; gap:8px;}
+  .counter button{width:44px; min-height:40px; font-size:24px; line-height:1; padding:0;}
+  .counter .value{text-align:center; font-size:22px; font-weight:800; font-variant-numeric:tabular-nums;}
 
-  .actions{display:flex; align-items:center; gap:12px; padding:14px 0 4px;}
-  .actions .print{margin-left:auto; flex:1 1 auto; min-height:54px; font-size:18px;}
-  .status{min-height:20px; padding-top:6px;}
+  .actions{display:flex; align-items:center; gap:12px; padding:7px 0 2px;}
+  .actions .print{margin-left:auto; flex:1 1 auto; min-height:44px; font-size:17px;}
+  .status{min-height:0; padding-top:2px; font-size:13px;}
+  .settings-link{
+    display:block; width:100%; margin-top:8px;
+    background:transparent; color:var(--muted); border:1px solid var(--line);
+    min-height:38px; font-weight:700;
+  }
   .status.ok{color:var(--accent); font-weight:700;}
   .status.err{color:var(--danger); font-weight:700;}
 
@@ -94,14 +99,6 @@
 
   <!-- ===== Bestellen ===== -->
   <section id="orderView">
-    <div class="topbar">
-      <div>
-        <h1>Küche</h1>
-        <p>Bestellung aufnehmen</p>
-      </div>
-      <button class="icon-button" id="settingsBtn" type="button" aria-label="Einstellungen">⚙︎</button>
-    </div>
-
     <!-- Küche -->
     <div class="group">
       <div class="group-title">Küche</div>
@@ -123,6 +120,8 @@
       </div>
       <p class="status" id="status_kiosk"></p>
     </div>
+
+    <button class="settings-link" id="settingsBtn" type="button">⚙︎ Einstellungen</button>
   </section>
 
   <!-- ===== Einstellungen ===== -->

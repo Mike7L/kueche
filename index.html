@@ -65,10 +65,27 @@
   .actions .print{margin-left:auto; flex:1 1 auto; min-height:44px; font-size:17px;}
   .status{min-height:0; padding-top:2px; font-size:13px;}
   .settings-link{
-    display:block; width:100%; margin-top:8px;
+    display:block; width:100%;
     background:transparent; color:var(--muted); border:1px solid var(--line);
     min-height:38px; font-weight:700;
   }
+  .bottom-actions{display:flex; gap:10px; margin-top:8px;}
+  .bottom-actions .settings-link{flex:1;}
+
+  /* Journal */
+  .j-day{margin-bottom:14px;}
+  .j-day-title{
+    font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.03em;
+    color:var(--muted); padding:6px 0 6px; border-bottom:1px solid var(--line); margin-bottom:6px;
+  }
+  .j-entry{padding:7px 0; border-bottom:1px solid var(--line);}
+  .j-meta{display:flex; align-items:center; gap:8px;}
+  .j-time{font-variant-numeric:tabular-nums; font-weight:800; font-size:15px;}
+  .j-badge{font-size:12px; font-weight:800; padding:2px 9px; border-radius:999px; color:#fff;}
+  .j-badge.kueche{background:var(--accent);}
+  .j-badge.kiosk{background:#b45309;}
+  .j-no{color:var(--muted); font-size:13px; font-variant-numeric:tabular-nums; margin-left:auto;}
+  .j-items{font-size:15px; margin-top:3px;}
   .status.ok{color:var(--accent); font-weight:700;}
   .status.err{color:var(--danger); font-weight:700;}
 
@@ -121,7 +138,21 @@
       <p class="status" id="status_kiosk"></p>
     </div>
 
-    <button class="settings-link" id="settingsBtn" type="button">⚙︎ Einstellungen</button>
+    <div class="bottom-actions">
+      <button class="settings-link" id="journalBtn" type="button">🧾 Journal</button>
+      <button class="settings-link" id="settingsBtn" type="button">⚙︎ Einstellungen</button>
+    </div>
+  </section>
+
+  <!-- ===== Journal ===== -->
+  <section id="journalView" hidden>
+    <div class="topbar">
+      <div><h1>Journal</h1></div>
+      <button class="icon-button" id="journalBack" type="button" aria-label="Zurück">✕</button>
+    </div>
+    <div id="journalList"></div>
+    <button class="settings-link" id="journalClear" type="button"
+            style="margin-top:14px; color:var(--danger); border-color:var(--danger);">Verlauf leeren</button>
   </section>
 
   <!-- ===== Einstellungen ===== -->
@@ -400,6 +431,7 @@ async function printSection(target){
   const orderNo = nextOrderNo(target);
   try {
     await sendXml(buildOrderXml(items, orderNo, MENUS[target].heading), target);
+    logOrder(target, orderNo, items);
     setStatus('status_' + target, `Gedruckt — ${MENUS[target].label} #${String(orderNo).padStart(4,'0')}`, 'ok');
     sndSuccess();
     resetSection(target, true);
@@ -512,23 +544,86 @@ function assignPrinter(target, host){
   setStatus('scanStatus', `${MENUS[target].label}: ${host} gewählt.`, 'ok');
 }
 
+// ---- Journal (Verlauf nach Tagen) ----------------------------------------
+function loadJournal(){
+  try { return JSON.parse(localStorage.getItem('kueche_journal') || '[]'); }
+  catch { return []; }
+}
+function logOrder(target, no, items){
+  const log = loadJournal();
+  log.push({ ts: Date.now(), target, no, items: items.map(i => ({ name:i.name, qty:i.qty })) });
+  if (log.length > 1000) log.splice(0, log.length - 1000); // Größe begrenzen
+  localStorage.setItem('kueche_journal', JSON.stringify(log));
+}
+const _WD = ['So','Mo','Di','Mi','Do','Fr','Sa'];
+function dayKey(ts){
+  const d = new Date(ts), p = (n)=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+function dayLabel(key){
+  const d = new Date(key + 'T12:00:00'), p = (n)=>String(n).padStart(2,'0');
+  const human = `${_WD[d.getDay()]}, ${p(d.getDate())}.${p(d.getMonth()+1)}.${d.getFullYear()}`;
+  if (key === dayKey(Date.now())) return 'Heute · ' + human;
+  if (key === dayKey(Date.now() - 86400000)) return 'Gestern · ' + human;
+  return human;
+}
+function fmtTime(ts){ const d=new Date(ts), p=(n)=>String(n).padStart(2,'0'); return `${p(d.getHours())}:${p(d.getMinutes())}`; }
+function itemsSummary(items){ return items.map(i => `${i.qty}× ${i.name}`).join(' · '); }
+
+function renderJournal(){
+  const root = $('journalList');
+  const log = loadJournal();
+  if (!log.length){
+    root.innerHTML = '<p class="hint">Noch keine Bestellungen.</p>';
+    return;
+  }
+  const groups = {};
+  for (const e of log){ const k = dayKey(e.ts); (groups[k] = groups[k] || []).push(e); }
+  const days = Object.keys(groups).sort().reverse();   // neueste Tage zuerst
+  let html = '';
+  for (const day of days){
+    const entries = groups[day].slice().sort((a,b) => a.ts - b.ts); // im Tag chronologisch
+    html += `<div class="j-day"><div class="j-day-title">${escXml(dayLabel(day))}</div>`;
+    for (const e of entries){
+      const label = MENUS[e.target] ? MENUS[e.target].label : e.target;
+      html += `<div class="j-entry"><div class="j-meta">`
+        + `<span class="j-time">${fmtTime(e.ts)}</span>`
+        + `<span class="j-badge ${escXml(e.target)}">${escXml(label)}</span>`
+        + `<span class="j-no">#${String(e.no).padStart(4,'0')}</span></div>`
+        + `<div class="j-items">${escXml(itemsSummary(e.items))}</div></div>`;
+    }
+    html += `</div>`;
+  }
+  root.innerHTML = html;
+}
+function clearJournal(){
+  if (!confirm('Verlauf wirklich löschen?')) return;
+  localStorage.removeItem('kueche_journal');
+  renderJournal();
+}
+
 // ---- Ansichten / Hilfen --------------------------------------------------
 function setStatus(id, text, kind){
   const el = $(id);
   el.textContent = text || '';
   el.className = 'status' + (kind ? ' ' + kind : '');
 }
-function showSettings(show){
-  $('orderView').hidden = show;
-  $('settingsView').hidden = !show;
-  if (show){
+function showView(name){
+  $('orderView').hidden   = name !== 'order';
+  $('settingsView').hidden = name !== 'settings';
+  $('journalView').hidden  = name !== 'journal';
+  if (name === 'settings'){
     for (const t of TARGETS) $('ip_' + t).value = printerIP(t);
   }
+  if (name === 'journal') renderJournal();
 }
 
 function init(){
-  $('settingsBtn').addEventListener('click', () => showSettings(true));
-  $('backBtn').addEventListener('click', () => showSettings(false));
+  $('settingsBtn').addEventListener('click', () => showView('settings'));
+  $('backBtn').addEventListener('click', () => showView('order'));
+  $('journalBtn').addEventListener('click', () => showView('journal'));
+  $('journalBack').addEventListener('click', () => showView('order'));
+  $('journalClear').addEventListener('click', clearJournal);
 
   for (const t of TARGETS){
     $(MENUS[t].printBtn).addEventListener('click', () => printSection(t));

@@ -192,6 +192,47 @@ const state = { qty: { kueche:{}, kiosk:{} } };
 const $ = (id) => document.getElementById(id);
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
+// ---- Töne (Web Audio, ohne Dateien) --------------------------------------
+let _audio = null;
+function ac(){
+  if (!_audio){
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) _audio = new AC();
+  }
+  if (_audio && _audio.state === 'suspended') _audio.resume();
+  return _audio;
+}
+function beep(freq, durMs, type, gain){
+  const ctx = ac(); if (!ctx) return;
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.value = freq;
+  osc.connect(g); g.connect(ctx.destination);
+  const t = ctx.currentTime, vol = gain || 0.14;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(vol, t + 0.004);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + durMs/1000);
+  osc.start(t);
+  osc.stop(t + durMs/1000 + 0.02);
+}
+const sndUp      = () => beep(660, 55, 'square', 0.10);
+const sndDown    = () => beep(440, 55, 'square', 0.10);
+const sndReset   = () => beep(300, 70, 'triangle', 0.10);
+const sndSuccess = () => { beep(784, 90, 'sine', 0.16); setTimeout(() => beep(1047, 130, 'sine', 0.16), 85); };
+const sndError   = () => { beep(200, 220, 'sawtooth', 0.14); setTimeout(() => beep(150, 260, 'sawtooth', 0.14), 120); };
+
+// ---- Bildschirm wachhalten (zusätzlich zum nativen Idle-Timer) -----------
+let _wakeLock = null;
+async function keepAwake(){
+  try {
+    if ('wakeLock' in navigator){
+      _wakeLock = await navigator.wakeLock.request('screen');
+      _wakeLock.addEventListener('release', () => { _wakeLock = null; });
+    }
+  } catch (e) { /* nicht unterstützt -> nativer Idle-Timer greift */ }
+}
+
 // ---- Speicher ------------------------------------------------------------
 function printerIP(target){
   // Migration: alter Einzel-Schlüssel -> beide Drucker
@@ -332,6 +373,7 @@ function renderItems(target){
 function changeQty(target, key, delta){
   const cur = state.qty[target];
   cur[key] = Math.max(0, (cur[key] || 0) + delta);
+  (delta > 0 ? sndUp : sndDown)();
   renderItems(target);
   setStatus('status_' + target, '');
 }
@@ -340,8 +382,9 @@ function currentItems(target){
     .map((m) => ({ name: m.name, qty: state.qty[target][m.key] || 0 }))
     .filter((it) => it.qty > 0);
 }
-function resetSection(target){
+function resetSection(target, silent){
   state.qty[target] = {};
+  if (!silent) sndReset();
   renderItems(target);
   setStatus('status_' + target, '');
 }
@@ -358,9 +401,11 @@ async function printSection(target){
   try {
     await sendXml(buildOrderXml(items, orderNo, MENUS[target].heading), target);
     setStatus('status_' + target, `Gedruckt — ${MENUS[target].label} #${String(orderNo).padStart(4,'0')}`, 'ok');
-    resetSection(target);
+    sndSuccess();
+    resetSection(target, true);
   } catch (e){
     setStatus('status_' + target, 'Fehler: ' + e.message + ' — Drucker/WLAN prüfen.', 'err');
+    sndError();
   } finally {
     btn.disabled = false;
   }
@@ -495,6 +540,11 @@ function init(){
 
   $('scanBtn').addEventListener('click', scanPrinters);
   if (scanBridge()) $('scanBlock').hidden = false;
+
+  keepAwake();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') keepAwake();
+  });
 }
 
 init();

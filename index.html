@@ -25,7 +25,7 @@
   }
   .topbar{
     display:flex; align-items:center; justify-content:space-between;
-    gap:12px; padding:8px 0 18px;
+    gap:12px; padding:8px 0 12px;
   }
   h1,h2,p{margin:0;}
   h1{font-size:30px; line-height:1.1;}
@@ -38,38 +38,54 @@
   button:disabled{background:#b7b0a6;}
   .icon-button{width:44px; padding:0; font-size:22px;}
   .text-button{background:transparent; color:var(--danger); padding-inline:0;}
-  .items{display:grid; gap:12px;}
+  .btn-soft{background:var(--accent-soft); color:var(--accent);}
+  .btn-soft.on{background:var(--accent); color:#fff;}
+
+  /* Gruppen */
+  .group{margin:6px 0 4px;}
+  .group-title{
+    display:flex; align-items:center; gap:8px;
+    font-size:15px; font-weight:800; letter-spacing:.04em; text-transform:uppercase;
+    color:var(--muted); padding:14px 2px 8px;
+  }
+  .group-title::after{content:""; flex:1; height:1px; background:var(--line);}
+
+  .items{display:grid; gap:10px;}
   .item-card{
     display:flex; align-items:center; justify-content:space-between; gap:12px;
-    border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:14px 16px;
+    border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:12px 14px;
   }
   .item-card.active{border-color:var(--accent); background:var(--accent-soft);}
-  .item-name{font-size:20px; font-weight:800;}
-  .counter{display:inline-grid; grid-template-columns:52px 56px 52px; align-items:center; gap:8px;}
-  .counter button{width:52px; min-height:48px; font-size:26px; line-height:1; padding:0;}
-  .counter .value{text-align:center; font-size:24px; font-weight:800; font-variant-numeric:tabular-nums;}
-  .actions{display:flex; align-items:center; gap:12px; padding:22px 0 6px;}
-  #printBtn{margin-left:auto; flex:1 1 auto; min-height:56px; font-size:18px;}
-  .status{min-height:22px; padding-top:10px;}
+  .item-name{font-size:19px; font-weight:800;}
+  .counter{display:inline-grid; grid-template-columns:50px 52px 50px; align-items:center; gap:8px;}
+  .counter button{width:50px; min-height:46px; font-size:26px; line-height:1; padding:0;}
+  .counter .value{text-align:center; font-size:23px; font-weight:800; font-variant-numeric:tabular-nums;}
+
+  .actions{display:flex; align-items:center; gap:12px; padding:14px 0 4px;}
+  .actions .print{margin-left:auto; flex:1 1 auto; min-height:54px; font-size:18px;}
+  .status{min-height:20px; padding-top:6px;}
   .status.ok{color:var(--accent); font-weight:700;}
   .status.err{color:var(--danger); font-weight:700;}
-  .section-title{display:flex; align-items:center; justify-content:space-between; padding:4px 0 14px;}
-  .hint{padding:4px 0 10px;}
-  .field{display:grid; gap:6px; margin:10px 0 16px;}
+
+  /* Einstellungen */
+  .section-title{display:flex; align-items:center; justify-content:space-between; padding:14px 0 10px;}
+  .hint{padding:8px 0 10px;}
+  .field{display:grid; gap:6px; margin:8px 0 10px;}
   .field label{font-size:14px; color:var(--muted); font-weight:700;}
   .field input{
     font:inherit; padding:12px 14px; border:1px solid var(--line); border-radius:10px;
     background:var(--panel); color:var(--ink); font-variant-numeric:tabular-nums;
   }
+  .btn-small{min-height:40px; font-size:15px;}
   .printer-list{display:grid; gap:10px; margin-top:10px;}
   .printer-row{
-    display:flex; align-items:center; justify-content:space-between; gap:12px;
-    border:1px solid var(--line); border-radius:10px; background:var(--panel); padding:12px 14px;
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    border:1px solid var(--line); border-radius:10px; background:var(--panel); padding:10px 12px;
   }
-  .printer-row.selected{border-color:var(--accent); background:var(--accent-soft);}
   .printer-host{font-variant-numeric:tabular-nums; font-weight:700;}
   .printer-model{color:var(--muted); font-size:13px; margin-top:2px;}
-  .printer-row button{min-height:40px;}
+  .assign{display:flex; gap:6px;}
+  .assign button{min-height:38px; padding:6px 10px; font-size:14px;}
   [hidden]{display:none !important;}
 </style>
 </head>
@@ -86,13 +102,27 @@
       <button class="icon-button" id="settingsBtn" type="button" aria-label="Einstellungen">⚙︎</button>
     </div>
 
-    <div class="items" id="items"></div>
-
-    <div class="actions">
-      <button class="text-button" id="resetBtn" type="button">Zurücksetzen</button>
-      <button id="printBtn" type="button">An Küche drucken</button>
+    <!-- Küche -->
+    <div class="group">
+      <div class="group-title">Küche</div>
+      <div class="items" id="items_kueche"></div>
+      <div class="actions">
+        <button class="text-button" id="reset_kueche" type="button">Zurücksetzen</button>
+        <button class="print" id="print_kueche" type="button">An Küche drucken</button>
+      </div>
+      <p class="status" id="status_kueche"></p>
     </div>
-    <p class="status" id="orderStatus"></p>
+
+    <!-- Kiosk -->
+    <div class="group">
+      <div class="group-title">Kiosk</div>
+      <div class="items" id="items_kiosk"></div>
+      <div class="actions">
+        <button class="text-button" id="reset_kiosk" type="button">Zurücksetzen</button>
+        <button class="print" id="print_kiosk" type="button">In Kiosk drucken</button>
+      </div>
+      <p class="status" id="status_kiosk"></p>
+    </div>
   </section>
 
   <!-- ===== Einstellungen ===== -->
@@ -102,22 +132,32 @@
       <button class="icon-button" id="backBtn" type="button" aria-label="Zurück">✕</button>
     </div>
 
-    <div class="section-title"><h2>Drucker</h2></div>
+    <div class="section-title"><h2>Drucker Küche</h2></div>
     <div class="field">
-      <label for="ipInput">IP-Adresse des Druckers</label>
-      <input id="ipInput" type="text" inputmode="decimal" autocapitalize="off"
+      <label for="ip_kueche">IP-Adresse</label>
+      <input id="ip_kueche" type="text" inputmode="decimal" autocapitalize="off"
              autocomplete="off" spellcheck="false" placeholder="192.168.1.85">
     </div>
-    <p class="hint">Gedruckt wird per ePOS-Print über HTTP. „Secure Printing“ am Drucker muss <b>aus</b> sein.</p>
-    <button id="testBtn" type="button">Testdruck senden</button>
-    <p class="status" id="testStatus"></p>
+    <button class="btn-small" id="test_kueche" type="button">Testdruck Küche</button>
+    <p class="status" id="teststatus_kueche"></p>
+
+    <div class="section-title"><h2>Drucker Kiosk</h2></div>
+    <div class="field">
+      <label for="ip_kiosk">IP-Adresse</label>
+      <input id="ip_kiosk" type="text" inputmode="decimal" autocapitalize="off"
+             autocomplete="off" spellcheck="false" placeholder="192.168.1.85">
+    </div>
+    <button class="btn-small" id="test_kiosk" type="button">Testdruck Kiosk</button>
+    <p class="status" id="teststatus_kiosk"></p>
 
     <div id="scanBlock" hidden>
-      <div class="section-title" style="padding-top:20px"><h2>Im Netzwerk suchen</h2></div>
+      <div class="section-title" style="padding-top:18px"><h2>Im Netzwerk suchen</h2></div>
       <button id="scanBtn" type="button">Drucker im Netzwerk suchen</button>
       <p class="status" id="scanStatus"></p>
       <div class="printer-list" id="printerList"></div>
     </div>
+
+    <p class="hint">Gedruckt wird per ePOS-Print über HTTP. „Secure Printing“ am Drucker muss <b>aus</b> sein.</p>
   </section>
 
 </div>
@@ -125,27 +165,50 @@
 <script>
 'use strict';
 
-// Festes Menü
-const MENU = [
-  { key:'broetchen', name:'Brötchen' },
-  { key:'pommes',    name:'Pommes' },
-  { key:'backfisch', name:'Backfisch' },
-];
+// Zwei Sektionen mit je eigenem Drucker.
+const MENUS = {
+  kueche: {
+    label: 'Küche', heading: 'KÜCHE', printBtn: 'print_kueche',
+    items: [
+      { key:'broetchen', name:'Brötchen' },
+      { key:'pommes',    name:'Pommes' },
+      { key:'backfisch', name:'Backfisch' },
+    ],
+  },
+  kiosk: {
+    label: 'Kiosk', heading: 'KIOSK', printBtn: 'print_kiosk',
+    items: [
+      { key:'backfisch',     name:'Backfisch' },
+      { key:'matjes',        name:'Matjes' },
+      { key:'bismarck',      name:'Bismarck' },
+      { key:'krabbe',        name:'Krabbe' },
+      { key:'raeucherlachs', name:'Räucherlachs' },
+      { key:'sherry',        name:'Sherry' },
+    ],
+  },
+};
+const TARGETS = ['kueche', 'kiosk'];
 
-const state = { qty:{} };
+const state = { qty: { kueche:{}, kiosk:{} } };
 const $ = (id) => document.getElementById(id);
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 // ---- Speicher ------------------------------------------------------------
-function printerIP(){ return localStorage.getItem('kueche_ip') || '192.168.1.85'; }
-function setPrinterIP(ip){ localStorage.setItem('kueche_ip', ip.trim()); }
+function printerIP(target){
+  // Migration: alter Einzel-Schlüssel -> beide Drucker
+  const legacy = localStorage.getItem('kueche_ip');
+  return localStorage.getItem('kueche_ip_' + target) || legacy || '192.168.1.85';
+}
+function setPrinterIP(target, ip){ localStorage.setItem('kueche_ip_' + target, ip.trim()); }
 
-function nextOrderNo(){
+function nextOrderNo(target){
+  const key = 'kueche_counter_' + target;
   const today = new Date().toISOString().slice(0,10);
   let c;
-  try { c = JSON.parse(localStorage.getItem('kueche_counter') || '{}'); } catch { c = {}; }
+  try { c = JSON.parse(localStorage.getItem(key) || '{}'); } catch { c = {}; }
   if (c.date !== today) c = { date: today, seq: 0 };
   c.seq = (c.seq || 0) + 1;
-  localStorage.setItem('kueche_counter', JSON.stringify(c));
+  localStorage.setItem(key, JSON.stringify(c));
   return c.seq;
 }
 
@@ -159,18 +222,16 @@ function soapWrap(inner){
     '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">' +
     inner + '</epos-print></s:Body></s:Envelope>';
 }
-
 function nowStr(){
   const d = new Date(), p = (n)=>String(n).padStart(2,'0');
   return `${p(d.getDate())}.${p(d.getMonth()+1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
-
-function buildOrderXml(items, orderNo){
+function buildOrderXml(items, orderNo, heading){
   let b = '';
   b += '<text lang="de" smooth="true"/>';
   b += '<text align="center"/>';
   b += '<text dw="true" dh="true"/>';
-  b += '<text>KÜCHE&#10;</text>';
+  b += '<text>' + escXml(heading) + '&#10;</text>';
   b += '<text dw="false" dh="false"/>';
   b += '<text em="true"/>';
   b += '<text>Bestellung #' + String(orderNo).padStart(4,'0') + '&#10;</text>';
@@ -187,29 +248,21 @@ function buildOrderXml(items, orderNo){
   b += '<cut type="feed"/>';
   return soapWrap(b);
 }
-
-function buildTestXml(){
+function buildTestXml(heading){
   let b = '';
-  b += '<text lang="de" smooth="true"/>';
-  b += '<text align="center"/>';
-  b += '<text dw="true" dh="true"/>';
-  b += '<text>KÜCHE&#10;</text>';
-  b += '<text dw="false" dh="false"/>';
-  b += '<text>Testdruck&#10;</text>';
+  b += '<text lang="de" smooth="true"/><text align="center"/>';
+  b += '<text dw="true" dh="true"/><text>' + escXml(heading) + '&#10;</text>';
+  b += '<text dw="false" dh="false"/><text>Testdruck&#10;</text>';
   b += '<text>Umlaute: ä ö ü Ä Ö Ü ß&#10;</text>';
   b += '<text>' + escXml(nowStr()) + '&#10;</text>';
-  b += '<feed line="3"/>';
-  b += '<cut type="feed"/>';
+  b += '<feed line="3"/><cut type="feed"/>';
   return soapWrap(b);
 }
 
-function printerUrl(){
-  return `http://${printerIP()}/cgi-bin/epos/service.cgi?devid=local_printer&timeout=10000`;
+// ---- Druck-Brücke (nativ) / Fallback fetch -------------------------------
+function printerUrl(target){
+  return `http://${printerIP(target)}/cgi-bin/epos/service.cgi?devid=local_printer&timeout=10000`;
 }
-
-// Brücke zur nativen App (WKWebView). Ist sie da, druckt der native Code
-// per URLSession (kein Mixed-Content, kein Zertifikatsproblem). Sonst:
-// direkter fetch (lokales HTTP / Test im Browser).
 let _printSeq = 0;
 const _printWaiters = {};
 window.__kprintResult = function(id, ok, message){
@@ -221,8 +274,7 @@ window.__kprintResult = function(id, ok, message){
 function nativeBridge(){
   return window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.kprint;
 }
-
-async function sendXml(xml){
+async function sendXml(xml, target){
   const bridge = nativeBridge();
   if (bridge){
     const id = ++_printSeq;
@@ -232,30 +284,26 @@ async function sendXml(xml){
         if (_printWaiters[id]){ delete _printWaiters[id]; reject(new Error('Zeitüberschreitung')); }
       }, 15000);
     });
-    bridge.postMessage({ id, url: printerUrl(), xml });
+    bridge.postMessage({ id, url: printerUrl(target), xml });
     return p;
   }
-  // Fallback: direkter fetch (funktioniert nur über HTTP-Origin/lokal)
-  const res = await fetch(printerUrl(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/xml; charset=utf-8' },
-    body: xml,
+  const res = await fetch(printerUrl(target), {
+    method: 'POST', headers: { 'Content-Type': 'text/xml; charset=utf-8' }, body: xml,
   });
   const txt = await res.text();
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const ok = /success="true"/.test(txt);
-  if (!ok){
+  if (!/success="true"/.test(txt)){
     const m = txt.match(/code="([^"]*)"/);
     throw new Error('Drucker meldete Fehler' + (m && m[1] ? ` (${m[1]})` : '') + '.');
   }
 }
 
 // ---- Bestell-Ansicht -----------------------------------------------------
-function renderItems(){
-  const root = $('items');
+function renderItems(target){
+  const root = $('items_' + target);
   root.innerHTML = '';
-  for (const item of MENU){
-    const qty = state.qty[item.key] || 0;
+  for (const item of MENUS[target].items){
+    const qty = state.qty[target][item.key] || 0;
     const card = document.createElement('div');
     card.className = 'item-card' + (qty > 0 ? ' active' : '');
 
@@ -268,81 +316,76 @@ function renderItems(){
 
     const minus = document.createElement('button');
     minus.type = 'button'; minus.textContent = '−'; minus.disabled = qty <= 0;
-    minus.addEventListener('click', () => changeQty(item.key, -1));
+    minus.addEventListener('click', () => changeQty(target, item.key, -1));
 
     const value = document.createElement('div');
     value.className = 'value'; value.textContent = String(qty);
 
     const plus = document.createElement('button');
     plus.type = 'button'; plus.textContent = '+';
-    plus.addEventListener('click', () => changeQty(item.key, +1));
+    plus.addEventListener('click', () => changeQty(target, item.key, +1));
 
     counter.append(minus, value, plus);
     card.append(name, counter);
     root.append(card);
   }
 }
-
-function changeQty(key, delta){
-  state.qty[key] = Math.max(0, (state.qty[key] || 0) + delta);
-  renderItems();
-  setStatus('orderStatus', '');
+function changeQty(target, key, delta){
+  const cur = state.qty[target];
+  cur[key] = Math.max(0, (cur[key] || 0) + delta);
+  renderItems(target);
+  setStatus('status_' + target, '');
 }
-
-function currentItems(){
-  return MENU
-    .map((m) => ({ name: m.name, qty: state.qty[m.key] || 0 }))
+function currentItems(target){
+  return MENUS[target].items
+    .map((m) => ({ name: m.name, qty: state.qty[target][m.key] || 0 }))
     .filter((it) => it.qty > 0);
 }
-
-function resetOrder(){
-  state.qty = {};
-  renderItems();
-  setStatus('orderStatus', '');
+function resetSection(target){
+  state.qty[target] = {};
+  renderItems(target);
+  setStatus('status_' + target, '');
 }
-
-async function printOrder(){
-  const items = currentItems();
+async function printSection(target){
+  const items = currentItems(target);
   if (!items.length){
-    setStatus('orderStatus', 'Bitte zuerst Positionen wählen.', 'err');
+    setStatus('status_' + target, 'Bitte zuerst Positionen wählen.', 'err');
     return;
   }
-  const btn = $('printBtn');
+  const btn = $(MENUS[target].printBtn);
   btn.disabled = true;
-  setStatus('orderStatus', 'Drucke …');
-  const orderNo = nextOrderNo();
+  setStatus('status_' + target, 'Drucke …');
+  const orderNo = nextOrderNo(target);
   try {
-    await sendXml(buildOrderXml(items, orderNo));
-    setStatus('orderStatus', `Gedruckt — Bestellung #${String(orderNo).padStart(4,'0')}`, 'ok');
-    state.qty = {};
-    renderItems();
+    await sendXml(buildOrderXml(items, orderNo, MENUS[target].heading), target);
+    setStatus('status_' + target, `Gedruckt — ${MENUS[target].label} #${String(orderNo).padStart(4,'0')}`, 'ok');
+    resetSection(target);
   } catch (e){
-    setStatus('orderStatus', 'Fehler: ' + e.message + ' — Drucker/WLAN prüfen.', 'err');
+    setStatus('status_' + target, 'Fehler: ' + e.message + ' — Drucker/WLAN prüfen.', 'err');
   } finally {
     btn.disabled = false;
   }
 }
 
-// ---- Einstellungen -------------------------------------------------------
-async function testPrint(){
-  const btn = $('testBtn');
+// ---- Einstellungen: Testdruck --------------------------------------------
+async function testPrint(target){
+  const btn = $('test_' + target);
   btn.disabled = true;
-  setStatus('testStatus', 'Testdruck wird gesendet …');
+  setStatus('teststatus_' + target, 'Testdruck wird gesendet …');
   try {
-    await sendXml(buildTestXml());
-    setStatus('testStatus', 'Testdruck gesendet — kommt er aus dem Drucker?', 'ok');
+    await sendXml(buildTestXml(MENUS[target].heading), target);
+    setStatus('teststatus_' + target, 'Testdruck gesendet — kommt er aus dem Drucker?', 'ok');
   } catch (e){
-    setStatus('testStatus', 'Fehler: ' + e.message, 'err');
+    setStatus('teststatus_' + target, 'Fehler: ' + e.message, 'err');
   } finally {
     btn.disabled = false;
   }
 }
 
 // ---- Drucker-Suche (nur in der nativen App) ------------------------------
-// Das Scannen des Netzwerks (TCP :9100) macht der native Swift-Code und liefert
-// das Ergebnis über window.__kscanResult zurück.
 let _scanSeq = 0;
 const _scanWaiters = {};
+let _lastPrinters = [];
 window.__kscanResult = function(id, json){
   const w = _scanWaiters[id];
   if (!w) return;
@@ -353,7 +396,6 @@ window.__kscanResult = function(id, json){
 function scanBridge(){
   return window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.kscan;
 }
-
 function requestScan(){
   const bridge = scanBridge();
   if (!bridge) return Promise.reject(new Error('Suche nur in der App verfügbar'));
@@ -366,34 +408,30 @@ function requestScan(){
     bridge.postMessage({ id });
   });
 }
-
 async function scanPrinters(){
   const btn = $('scanBtn');
   btn.disabled = true;
   setStatus('scanStatus', 'Suche läuft … (ein paar Sekunden)');
   try {
-    const printers = await requestScan();
-    renderPrinterList(printers);
-    setStatus('scanStatus', `${printers.length} Drucker gefunden.`);
+    _lastPrinters = await requestScan();
+    renderPrinterList();
+    setStatus('scanStatus', `${_lastPrinters.length} Drucker gefunden — je Drucker einer Sektion zuweisen.`);
   } catch (e){
     setStatus('scanStatus', 'Fehler: ' + e.message, 'err');
   } finally {
     btn.disabled = false;
   }
 }
-
-function renderPrinterList(printers){
+function renderPrinterList(){
   const root = $('printerList');
   root.innerHTML = '';
-  if (!printers.length){
+  if (!_lastPrinters.length){
     root.innerHTML = '<p class="hint">Keine Drucker gefunden.</p>';
     return;
   }
-  const current = printerIP();
-  for (const p of printers){
+  for (const p of _lastPrinters){
     const row = document.createElement('div');
-    const selected = p.host === current;
-    row.className = 'printer-row' + (selected ? ' selected' : '');
+    row.className = 'printer-row';
 
     const info = document.createElement('div');
     const host = document.createElement('div');
@@ -407,20 +445,27 @@ function renderPrinterList(printers){
       info.append(model);
     }
 
-    const choose = document.createElement('button');
-    choose.type = 'button';
-    choose.textContent = selected ? 'Ausgewählt' : 'Wählen';
-    choose.disabled = selected;
-    choose.addEventListener('click', () => {
-      setPrinterIP(p.host);
-      $('ipInput').value = p.host;
-      renderPrinterList(printers);
-      setStatus('scanStatus', `Gewählt: ${p.host}`, 'ok');
-    });
+    const assign = document.createElement('div');
+    assign.className = 'assign';
+    for (const target of TARGETS){
+      const b = document.createElement('button');
+      const isOn = printerIP(target) === p.host;
+      b.type = 'button';
+      b.className = 'btn-soft' + (isOn ? ' on' : '');
+      b.textContent = (isOn ? '✓ ' : '') + MENUS[target].label;
+      b.addEventListener('click', () => assignPrinter(target, p.host));
+      assign.append(b);
+    }
 
-    row.append(info, choose);
+    row.append(info, assign);
     root.append(row);
   }
+}
+function assignPrinter(target, host){
+  setPrinterIP(target, host);
+  $('ip_' + target).value = host;
+  renderPrinterList();
+  setStatus('scanStatus', `${MENUS[target].label}: ${host} gewählt.`, 'ok');
 }
 
 // ---- Ansichten / Hilfen --------------------------------------------------
@@ -432,22 +477,25 @@ function setStatus(id, text, kind){
 function showSettings(show){
   $('orderView').hidden = show;
   $('settingsView').hidden = !show;
+  if (show){
+    for (const t of TARGETS) $('ip_' + t).value = printerIP(t);
+  }
 }
 
 function init(){
-  $('settingsBtn').addEventListener('click', () => { $('ipInput').value = printerIP(); showSettings(true); });
+  $('settingsBtn').addEventListener('click', () => showSettings(true));
   $('backBtn').addEventListener('click', () => showSettings(false));
-  $('printBtn').addEventListener('click', printOrder);
-  $('resetBtn').addEventListener('click', resetOrder);
-  $('testBtn').addEventListener('click', testPrint);
+
+  for (const t of TARGETS){
+    $(MENUS[t].printBtn).addEventListener('click', () => printSection(t));
+    $('reset_' + t).addEventListener('click', () => resetSection(t));
+    $('test_' + t).addEventListener('click', () => testPrint(t));
+    $('ip_' + t).addEventListener('change', (e) => { if (e.target.value.trim()) setPrinterIP(t, e.target.value); });
+    renderItems(t);
+  }
+
   $('scanBtn').addEventListener('click', scanPrinters);
-  $('ipInput').addEventListener('change', (e) => { if (e.target.value.trim()) setPrinterIP(e.target.value); });
-
-  // Suche nur anzeigen, wenn der native Scan verfügbar ist (in der App).
   if (scanBridge()) $('scanBlock').hidden = false;
-
-  $('ipInput').value = printerIP();
-  renderItems();
 }
 
 init();

@@ -187,7 +187,7 @@
       <div class="printer-list" id="printerList"></div>
     </div>
 
-    <p class="hint">Gedruckt wird per ePOS-Print über HTTP. „Secure Printing“ am Drucker muss <b>aus</b> sein.</p>
+    <p class="hint">Gedruckt wird per Roh-ESC/POS über Port 9100 (wie die Kasse). „Secure Printing“ am Drucker muss <b>aus</b> sein.</p>
   </section>
 
 </div>
@@ -283,57 +283,73 @@ function nextOrderNo(target){
   return c.seq;
 }
 
-// ---- ePOS-Print XML ------------------------------------------------------
+// (für Journal-HTML)
 function escXml(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-function soapWrap(inner){
-  return '<?xml version="1.0" encoding="utf-8"?>' +
-    '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body>' +
-    '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">' +
-    inner + '</epos-print></s:Body></s:Envelope>';
 }
 function nowStr(){
   const d = new Date(), p = (n)=>String(n).padStart(2,'0');
   return `${p(d.getDate())}.${p(d.getMonth()+1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
-function buildOrderXml(items, orderNo, heading){
-  let b = '';
-  b += '<text lang="de" smooth="true"/>';
-  b += '<text align="center"/>';
-  b += '<text dw="true" dh="true"/>';
-  b += '<text>' + escXml(heading) + '&#10;</text>';
-  b += '<text dw="false" dh="false"/>';
-  b += '<text em="true"/>';
-  b += '<text>Bestellung #' + String(orderNo).padStart(4,'0') + '&#10;</text>';
-  b += '<text em="false"/>';
-  b += '<text>' + escXml(nowStr()) + '&#10;</text>';
-  b += '<text align="left"/>';
-  b += '<text>' + '-'.repeat(32) + '&#10;</text>';
-  b += '<text dh="true"/>';
-  for (const it of items){
-    b += '<text> ' + it.qty + 'x ' + escXml(it.name) + '&#10;</text>';
+
+// ---- Roh-ESC/POS (Port 9100, wie die Kasse) ------------------------------
+// ePOS-Print/HTTP klappt nicht auf allen Druckern (z. B. .189 -> EX_TIMEOUT).
+// Roh-9100 druckt zuverlässig auf allen. Umlaute via Codepage CP858.
+const CP858 = {
+  'ä':0x84,'ö':0x94,'ü':0x81,'Ä':0x8e,'Ö':0x99,'Ü':0x9a,'ß':0xe1,'€':0xd5,'°':0xf8
+};
+function encodeText(str, out){
+  for (const ch of String(str)){
+    if (CP858[ch] !== undefined) out.push(CP858[ch]);
+    else { const c = ch.charCodeAt(0); out.push(c < 128 ? c : 0x3f); }
   }
-  b += '<text dh="false"/>';
-  b += '<feed line="3"/>';
-  b += '<cut type="feed"/>';
-  return soapWrap(b);
 }
-function buildTestXml(heading){
-  let b = '';
-  b += '<text lang="de" smooth="true"/><text align="center"/>';
-  b += '<text dw="true" dh="true"/><text>' + escXml(heading) + '&#10;</text>';
-  b += '<text dw="false" dh="false"/><text>Testdruck&#10;</text>';
-  b += '<text>Umlaute: ä ö ü Ä Ö Ü ß&#10;</text>';
-  b += '<text>' + escXml(nowStr()) + '&#10;</text>';
-  b += '<feed line="3"/><cut type="feed"/>';
-  return soapWrap(b);
+function buildReceipt(items, orderNo, heading){
+  const b = [];
+  const cmd = (...x) => { for (const y of x) b.push(y); };
+  const txt = (s) => encodeText(s, b);
+  const nl  = () => b.push(0x0A);
+  cmd(0x1B,0x40);          // ESC @  Initialisieren
+  cmd(0x1B,0x74,0x13);     // ESC t 19  Codepage CP858
+  cmd(0x1B,0x61,0x01);     // zentriert
+  cmd(0x1D,0x21,0x11);     // doppelte Breite+Höhe
+  txt(heading); nl();
+  cmd(0x1D,0x21,0x00);     // normal
+  cmd(0x1B,0x45,0x01);     // fett an
+  txt('Bestellung #' + String(orderNo).padStart(4,'0')); nl();
+  cmd(0x1B,0x45,0x00);     // fett aus
+  txt(nowStr()); nl();
+  cmd(0x1B,0x61,0x00);     // links
+  txt('-'.repeat(32)); nl();
+  cmd(0x1D,0x21,0x01);     // doppelte Höhe
+  for (const it of items){ txt(' ' + it.qty + 'x ' + it.name); nl(); }
+  cmd(0x1D,0x21,0x00);     // normal
+  nl(); nl(); nl();
+  cmd(0x1D,0x56,0x00);     // GS V 0  Abschneiden
+  return b;
+}
+function buildTestReceipt(heading){
+  const b = [];
+  const cmd = (...x) => { for (const y of x) b.push(y); };
+  const txt = (s) => encodeText(s, b);
+  const nl  = () => b.push(0x0A);
+  cmd(0x1B,0x40); cmd(0x1B,0x74,0x13);
+  cmd(0x1B,0x61,0x01); cmd(0x1D,0x21,0x11); txt(heading); nl();
+  cmd(0x1D,0x21,0x00); txt('Testdruck'); nl();
+  txt('Umlaute: ä ö ü Ä Ö Ü ß'); nl();
+  txt(nowStr()); nl();
+  nl(); nl(); nl(); cmd(0x1D,0x56,0x00);
+  return b;
+}
+function bytesToB64(arr){
+  let s = '';
+  for (let i = 0; i < arr.length; i += 4096){
+    s += String.fromCharCode.apply(null, arr.slice(i, i + 4096));
+  }
+  return btoa(s);
 }
 
-// ---- Druck-Brücke (nativ) / Fallback fetch -------------------------------
-function printerUrl(target){
-  return `http://${printerIP(target)}/cgi-bin/epos/service.cgi?devid=local_printer&timeout=10000`;
-}
+// ---- Druck-Brücke (nativ, Roh-9100) --------------------------------------
 let _printSeq = 0;
 const _printWaiters = {};
 window.__kprintResult = function(id, ok, message){
@@ -345,28 +361,18 @@ window.__kprintResult = function(id, ok, message){
 function nativeBridge(){
   return window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.kprint;
 }
-async function sendXml(xml, target){
+async function sendReceipt(bytes, target){
   const bridge = nativeBridge();
-  if (bridge){
-    const id = ++_printSeq;
-    const p = new Promise((resolve, reject) => {
-      _printWaiters[id] = { resolve, reject };
-      setTimeout(() => {
-        if (_printWaiters[id]){ delete _printWaiters[id]; reject(new Error('Zeitüberschreitung')); }
-      }, 15000);
-    });
-    bridge.postMessage({ id, url: printerUrl(target), xml });
-    return p;
-  }
-  const res = await fetch(printerUrl(target), {
-    method: 'POST', headers: { 'Content-Type': 'text/xml; charset=utf-8' }, body: xml,
+  if (!bridge) throw new Error('Drucken ist nur in der App möglich.');
+  const id = ++_printSeq;
+  const p = new Promise((resolve, reject) => {
+    _printWaiters[id] = { resolve, reject };
+    setTimeout(() => {
+      if (_printWaiters[id]){ delete _printWaiters[id]; reject(new Error('Zeitüberschreitung')); }
+    }, 15000);
   });
-  const txt = await res.text();
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  if (!/success="true"/.test(txt)){
-    const m = txt.match(/code="([^"]*)"/);
-    throw new Error('Drucker meldete Fehler' + (m && m[1] ? ` (${m[1]})` : '') + '.');
-  }
+  bridge.postMessage({ id, host: printerIP(target), port: 9100, data: bytesToB64(bytes) });
+  return p;
 }
 
 // ---- Bestell-Ansicht -----------------------------------------------------
@@ -430,7 +436,7 @@ async function printSection(target){
   setStatus('status_' + target, 'Drucke …');
   const orderNo = nextOrderNo(target);
   try {
-    await sendXml(buildOrderXml(items, orderNo, MENUS[target].heading), target);
+    await sendReceipt(buildReceipt(items, orderNo, MENUS[target].heading), target);
     logOrder(target, orderNo, items);
     setStatus('status_' + target, `Gedruckt — ${MENUS[target].label} #${String(orderNo).padStart(4,'0')}`, 'ok');
     sndSuccess();
@@ -449,7 +455,7 @@ async function testPrint(target){
   btn.disabled = true;
   setStatus('teststatus_' + target, 'Testdruck wird gesendet …');
   try {
-    await sendXml(buildTestXml(MENUS[target].heading), target);
+    await sendReceipt(buildTestReceipt(MENUS[target].heading), target);
     setStatus('teststatus_' + target, 'Testdruck gesendet — kommt er aus dem Drucker?', 'ok');
   } catch (e){
     setStatus('teststatus_' + target, 'Fehler: ' + e.message, 'err');

@@ -188,6 +188,7 @@
     </div>
 
     <p class="hint">Gedruckt wird per Roh-ESC/POS über Port 9100 (wie die Kasse). „Secure Printing“ am Drucker muss <b>aus</b> sein.</p>
+    <p class="hint" id="buildTag" style="text-align:center; opacity:.65;"></p>
   </section>
 
 </div>
@@ -218,6 +219,7 @@ const MENUS = {
   },
 };
 const TARGETS = ['kueche', 'kiosk'];
+const BUILD = '2026-07-13 · Roh-9100';   // sichtbar in Einstellungen zur Update-Kontrolle
 
 const state = { qty: { kueche:{}, kiosk:{} } };
 const $ = (id) => document.getElementById(id);
@@ -641,6 +643,7 @@ function init(){
 
   $('scanBtn').addEventListener('click', scanPrinters);
   if (scanBridge()) $('scanBlock').hidden = false;
+  $('buildTag').textContent = 'Stand ' + BUILD + (scanBridge() ? ' · App' : ' · Web');
 
   keepAwake();
   document.addEventListener('visibilitychange', () => {

@@ -187,7 +187,7 @@
       <div class="printer-list" id="printerList"></div>
     </div>
 
-    <p class="hint">Gedruckt wird per Roh-ESC/POS über Port 9100 (wie die Kasse). „Secure Printing“ am Drucker muss <b>aus</b> sein.</p>
+    <p class="hint">Druck zuerst per ePOS-Print (HTTP, teilt sich den Drucker mit der Kasse), sonst Roh-9100. „Secure Printing“ am Drucker muss <b>aus</b> sein.</p>
     <p class="hint" id="buildTag" style="text-align:center; opacity:.65;"></p>
   </section>
 
@@ -219,7 +219,7 @@ const MENUS = {
   },
 };
 const TARGETS = ['kueche', 'kiosk'];
-const BUILD = '2026-07-13 · Roh-9100';   // sichtbar in Einstellungen zur Update-Kontrolle
+const BUILD = '2026-07-13b · ePOS+9100';   // sichtbar in Einstellungen zur Update-Kontrolle
 
 const state = { qty: { kueche:{}, kiosk:{} } };
 const $ = (id) => document.getElementById(id);
@@ -351,7 +351,39 @@ function bytesToB64(arr){
   return btoa(s);
 }
 
-// ---- Druck-Brücke (nativ, Roh-9100) --------------------------------------
+// ---- ePOS-Print XML (bevorzugt: belegt Port 9100 nicht -> Kasse-freundlich) --
+function soapWrap(inner){
+  return '<?xml version="1.0" encoding="utf-8"?>' +
+    '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body>' +
+    '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">' +
+    inner + '</epos-print></s:Body></s:Envelope>';
+}
+function buildEposXml(items, orderNo, heading){
+  let b = '';
+  b += '<text lang="de" smooth="true"/><text align="center"/>';
+  b += '<text dw="true" dh="true"/><text>' + escXml(heading) + '&#10;</text>';
+  b += '<text dw="false" dh="false"/><text em="true"/>';
+  b += '<text>Bestellung #' + String(orderNo).padStart(4,'0') + '&#10;</text>';
+  b += '<text em="false"/><text>' + escXml(nowStr()) + '&#10;</text>';
+  b += '<text align="left"/><text>' + '-'.repeat(32) + '&#10;</text><text dh="true"/>';
+  for (const it of items){ b += '<text> ' + it.qty + 'x ' + escXml(it.name) + '&#10;</text>'; }
+  b += '<text dh="false"/><feed line="3"/><cut type="feed"/>';
+  return soapWrap(b);
+}
+function buildEposTest(heading){
+  let b = '';
+  b += '<text lang="de" smooth="true"/><text align="center"/>';
+  b += '<text dw="true" dh="true"/><text>' + escXml(heading) + '&#10;</text>';
+  b += '<text dw="false" dh="false"/><text>Testdruck&#10;</text>';
+  b += '<text>Umlaute: ä ö ü Ä Ö Ü ß&#10;</text>';
+  b += '<text>' + escXml(nowStr()) + '&#10;</text><feed line="3"/><cut type="feed"/>';
+  return soapWrap(b);
+}
+function eposUrl(target){
+  return `http://${printerIP(target)}/cgi-bin/epos/service.cgi?devid=local_printer&timeout=10000`;
+}
+
+// ---- Druck-Brücke (nativ): erst ePOS/HTTP, sonst Roh-9100 ----------------
 let _printSeq = 0;
 const _printWaiters = {};
 window.__kprintResult = function(id, ok, message){
@@ -363,7 +395,8 @@ window.__kprintResult = function(id, ok, message){
 function nativeBridge(){
   return window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.kprint;
 }
-async function sendReceipt(bytes, target){
+// escposBytes = Fallback (Roh-9100), eposXml = bevorzugt (HTTP)
+async function printJob(target, escposBytes, eposXml){
   const bridge = nativeBridge();
   if (!bridge) throw new Error('Drucken ist nur in der App möglich.');
   const id = ++_printSeq;
@@ -371,9 +404,13 @@ async function sendReceipt(bytes, target){
     _printWaiters[id] = { resolve, reject };
     setTimeout(() => {
       if (_printWaiters[id]){ delete _printWaiters[id]; reject(new Error('Zeitüberschreitung')); }
-    }, 15000);
+    }, 20000);
   });
-  bridge.postMessage({ id, host: printerIP(target), port: 9100, data: bytesToB64(bytes) });
+  bridge.postMessage({
+    id,
+    eposUrl: eposUrl(target), xml: eposXml,          // 1. Wahl
+    host: printerIP(target), port: 9100, data: bytesToB64(escposBytes),  // Fallback
+  });
   return p;
 }
 
@@ -438,7 +475,9 @@ async function printSection(target){
   setStatus('status_' + target, 'Drucke …');
   const orderNo = nextOrderNo(target);
   try {
-    await sendReceipt(buildReceipt(items, orderNo, MENUS[target].heading), target);
+    await printJob(target,
+      buildReceipt(items, orderNo, MENUS[target].heading),
+      buildEposXml(items, orderNo, MENUS[target].heading));
     logOrder(target, orderNo, items);
     setStatus('status_' + target, `Gedruckt — ${MENUS[target].label} #${String(orderNo).padStart(4,'0')}`, 'ok');
     sndSuccess();
@@ -457,7 +496,7 @@ async function testPrint(target){
   btn.disabled = true;
   setStatus('teststatus_' + target, 'Testdruck wird gesendet …');
   try {
-    await sendReceipt(buildTestReceipt(MENUS[target].heading), target);
+    await printJob(target, buildTestReceipt(MENUS[target].heading), buildEposTest(MENUS[target].heading));
     setStatus('teststatus_' + target, 'Testdruck gesendet — kommt er aus dem Drucker?', 'ok');
   } catch (e){
     setStatus('teststatus_' + target, 'Fehler: ' + e.message, 'err');
